@@ -23,6 +23,7 @@ const auto& synchro_close_socket = close;
 # define INVALID_SOCKET (-1)
 #elif _WIN32
 # include <winsock2.h>
+# include <ws2tcpip.h>
 using synchro_socket_t = SOCKET;
 const auto& synchro_close_socket = closesocket;
 #endif
@@ -152,12 +153,23 @@ namespace {
   enum class message_kind_t { signal, ack };
 
   // Payload of one pessage
+#ifdef _WIN32
+#pragma pack(push, 1)
+  struct payload_t
+  {
+    message_kind_t message_kind;
+    uint32_t       from_actor_id;
+    uint32_t       signal_id;
+  };
+#pragma pack(pop)
+#else
   struct __attribute__((__packed__)) payload_t
   {
     message_kind_t message_kind;
     uint32_t       from_actor_id;
     uint32_t       signal_id;
   };
+#endif
 
   std::ostream& operator<<(std::ostream& ostream, const payload_t& payload) {
     ostream << '[' <<

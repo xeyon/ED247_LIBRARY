@@ -71,7 +71,11 @@ set_target_properties(ed247 PROPERTIES PUBLIC_HEADER ed247.h)
 # ED247 static library definition
 add_library(ed247_static STATIC)
 add_library(Ed247::static ALIAS ed247_static)
-set_target_properties(ed247_static PROPERTIES OUTPUT_NAME ed247)
+if (WIN32)
+  set_target_properties(ed247_static PROPERTIES OUTPUT_NAME ed247_static)
+else()
+  set_target_properties(ed247_static PROPERTIES OUTPUT_NAME ed247)
+endif()
 target_link_libraries(ed247_static PUBLIC ed247_objects)
 set_target_properties(ed247_static PROPERTIES PUBLIC_HEADER ed247.h)
 

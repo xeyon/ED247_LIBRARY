@@ -10,6 +10,9 @@
 #include <libxml/tree.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
+#ifdef _WIN32
+#define xmlFree(v)  std::free(v)
+#endif
 
 
 #define LOG_SHORTFILE       (strrchr("/" __FILE__, '/') + 1)

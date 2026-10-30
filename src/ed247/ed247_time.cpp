@@ -14,32 +14,6 @@
 #endif
 
 
-#ifdef _MSC_VER
-#error gettimeofday has to be rewrote for MSVC. Use GetSystemTimeAsFileTime() for a more accurate time.
-static int gettimeofday(struct timeval * tp, struct timezone * tzp)
-{
-    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
-    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
-    // until 00:00:00 January 1, 1970
-    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
-
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time;
-
-    GetSystemTime( &system_time );
-    SystemTimeToFileTime( &system_time, &file_time );
-    time =  ((uint64_t)file_time.dwLowDateTime )      ;
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    tp->tv_sec  = (long) ((time - EPOCH) / 10000000L);
-    tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
-    return 0;
-}
-#endif
-
-
-
 // ed247_time.h implementation
 namespace ed247 {
   uint64_t get_monotonic_time_us()
@@ -83,10 +57,21 @@ namespace ed247 {
 
 void ed247_get_time(ed247_timestamp_t* timestamp)
 {
+#ifdef _WIN32
+  static const uint64_t WINDOWS_TO_UNIX_EPOCH_100NS = 116444736000000000ULL;
+  FILETIME file_time;
+  GetSystemTimeAsFileTime(&file_time);
+  const uint64_t time_100ns = (static_cast<uint64_t>(file_time.dwHighDateTime) << 32)
+                            | file_time.dwLowDateTime;
+  const uint64_t unix_time_100ns = time_100ns - WINDOWS_TO_UNIX_EPOCH_100NS;
+  timestamp->epoch_s = static_cast<uint32_t>(unix_time_100ns / 10000000ULL);
+  timestamp->offset_ns = static_cast<uint32_t>((unix_time_100ns % 10000000ULL) * 100ULL);
+#else
   struct timeval tv;
   gettimeofday(&tv, NULL);
   timestamp->epoch_s = (uint32_t)tv.tv_sec;
   timestamp->offset_ns = (uint32_t)tv.tv_usec*1000LL;
+#endif
 }
 
 void ed247_set_transport_timestamp_callback(ed247_get_time_t callback)
