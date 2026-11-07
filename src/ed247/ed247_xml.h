@@ -25,16 +25,24 @@
 #ifndef _ED247_XML_H_
 #define _ED247_XML_H_
 #include "ed247.h"
+#include "ed247_xml_parser.h"
 #include <string>
 #include <vector>
 #include <memory>
 
-// Prevent include of libxml2 header
-typedef struct _xmlNode *xmlNodePtr;
-
 namespace ed247 {
   namespace xml {
     struct Component;
+
+    //
+    // A node of the XML document being loaded.
+    //
+    // Note: the DOM is built by the expat based parser (see ed247_xml_parser.h).
+    // It used to be a libXML2 'xmlNodePtr' before the migration to expat. As libXML2
+    // was providing its own DOM, the header of the library did not have to include any
+    // XML header: this is still true as the DOM is now provided by the library itself.
+    //
+    typedef const ed247::xml::dom::Node* node_ptr_t;
 
     // Load ECIC and return an ed247::xml::Component node
     std::unique_ptr<Component> load_filepath(const std::string & filepath);
@@ -43,7 +51,7 @@ namespace ed247 {
 
     struct Node
     {
-      virtual void load(const xmlNodePtr xml_node) = 0;
+      virtual void load(node_ptr_t xml_node) = 0;
     };
 
     struct UdpSocket : public Node
@@ -57,13 +65,13 @@ namespace ed247 {
       ed247_direction_t _direction;
 
       UdpSocket();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct ComInterface : public Node
     {
       std::vector<UdpSocket> _udp_sockets;
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct DataTimestamp : public Node
@@ -72,7 +80,7 @@ namespace ed247 {
       ed247_yesno_t _enable_sample_offset;
 
       DataTimestamp();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct Errors : public Node
@@ -80,7 +88,7 @@ namespace ed247 {
       ed247_yesno_t _enable;
 
       Errors();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct Header: public Node
@@ -89,7 +97,7 @@ namespace ed247 {
       ed247_yesno_t _transport_timestamp;
 
       Header();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     //
@@ -120,25 +128,25 @@ namespace ed247 {
     struct DISSignal : public Signal
     {
       DISSignal();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct ANASignal : public Signal
     {
       ANASignal();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct NADSignal : public Signal
     {
       NADSignal();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     struct VNADSignal : public Signal
     {
       VNADSignal();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     //
@@ -158,7 +166,7 @@ namespace ed247 {
       DataTimestamp       _data_timestamp;
 
       virtual bool is_signal_based() const = 0;
-      virtual void validate(const xmlNodePtr closest_node) = 0;
+      virtual void validate(node_ptr_t closest_node) = 0;
       Stream(ed247_stream_type_t type, uint32_t sample_max_size_bytes, bool sample_size_fixed);
       virtual ~Stream() {}
     };
@@ -181,8 +189,8 @@ namespace ed247 {
     struct A429Stream : public StreamProtocoled
     {
       A429Stream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct A664Stream : public StreamProtocoled
@@ -190,22 +198,22 @@ namespace ed247 {
       ed247_yesno_t _enable_message_size;
 
       A664Stream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct A825Stream : public StreamProtocoled
     {
       A825Stream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct SERIALStream : public StreamProtocoled
     {
       SERIALStream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct ETHStream : public StreamProtocoled
@@ -214,36 +222,36 @@ namespace ed247 {
       std::string   _layer;
 
       ETHStream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct DISStream : public StreamSignals
     {
       DISStream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct ANAStream : public StreamSignals
     {
       ANAStream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct NADStream : public StreamSignals
     {
       NADStream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     struct VNADStream : public StreamSignals
     {
       VNADStream();
-      virtual void load(const xmlNodePtr xml_node) override final;
-      virtual void validate(const xmlNodePtr closest_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
+      virtual void validate(node_ptr_t closest_node) override final;
     };
 
     //
@@ -260,7 +268,7 @@ namespace ed247 {
       bool                                  _is_simple_channel;
 
       Channel();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
 
     //
@@ -279,7 +287,7 @@ namespace ed247 {
       std::vector<Channel>   _channel_list;
 
       Component();
-      virtual void load(const xmlNodePtr xml_node) override final;
+      virtual void load(node_ptr_t xml_node) override final;
     };
   }
 }

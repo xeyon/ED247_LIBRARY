@@ -37,13 +37,12 @@ endif()
 set(TEST_MULTICAST_INTERFACE_IP "${TEST_MULTICAST_INTERFACE_IP}" CACHE STRING "Ip address of the interface to use for multicast when performing the tests.")
 
 
-## LIBXML2
-if (NOT LibXml2_ROOT)
-  # Fix issue while building in 32bits
-  set(LibXml2_ROOT /)
-endif()
-find_package(LibXml2 2.9.1 REQUIRED)
-target_compile_definitions(LibXml2::LibXml2 INTERFACE "LIBXML_STATIC")
+## EXPAT
+# Expat is a lightweight XML parser used to read the ECIC files.
+# Note: the library used to depend on libXML2 (which provided a DOM and a XSD validation).
+# The DOM is now built by the library itself (see src/ed247/ed247_xml_parser.cpp) and the
+# XSD validation has been replaced by the semantic analysis performed in src/ed247/ed247_xml.cpp.
+find_package(EXPAT REQUIRED)
 
 # Simulink RT logger
 add_library(SimulinkLogger INTERFACE)
@@ -101,7 +100,7 @@ MESSAGE("# Configuration:")
 MESSAGE("# Product version:        ${VERSION}")
 MESSAGE("# System Name:            ${CMAKE_SYSTEM_NAME}")
 MESSAGE("# Platform ID:            ${PLATFORM_ID}")
-MESSAGE("# LibXML2:                ${LIBXML2_LIBRARIES}")
+MESSAGE("# Expat:                  ${EXPAT_LIBRARIES}")
 MESSAGE("# GTEST:                  ${GTest_DIR}")
 MESSAGE("# Doxygen:                ${DOXYGEN_EXECUTABLE}")
 MESSAGE("")

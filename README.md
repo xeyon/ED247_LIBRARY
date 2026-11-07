@@ -31,7 +31,7 @@ The ED247 LIBRARY / LIBED247 can be built for the following operating systems an
  ## Runtime
 |   Library    |         Purpose         | Release |
 | :----------: | :---------------------: | :-----: |
-| [LIBXML2][1] |        Required         |  2.9.1  |
+|  [EXPAT][1]  |        Required         |  2.5.0  |
 
 ## Building
 |     Tool     |         Purpose          | Release  |
@@ -136,7 +136,7 @@ cmake --install <build_root> [--prefix /where/to/install ]
 ```
 
 <!-- Links -->
-[1]: https://github.com/GNOME/libxml2
+[1]: https://github.com/libexpat/libexpat
 [2]: https://github.com/google/googletest
 [4]: https://github.com/Kitware/CMake
 [6]: https://github.com/doxygen/doxygen

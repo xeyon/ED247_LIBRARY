@@ -20,8 +20,8 @@ set(CMAKE_SYSROOT $ENV{QNX_TARGET})
 
 set(CMAKE_SKIP_RPATH TRUE)
 
-# libXML2
-#set(LibXml2_ROOT /)
+# Expat
+#set(EXPAT_ROOT /)
 
 # GTest
 #set(GTest_ROOT /)

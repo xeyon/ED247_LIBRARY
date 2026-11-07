@@ -1,15 +1,14 @@
 #include "ed247.h"
 #include "time_tools.h"
 #include "a429_tools.h"
+#include <expat.h>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string.h>
 #include <vector>
 #include <unordered_map>
 #include <memory>
-#include <libxml/tree.h>
-#include <libxml/parser.h>
-#include <libxml/xpath.h>
 
 
 #define LOG_SHORTFILE       (strrchr("/" __FILE__, '/') + 1)
@@ -51,6 +50,147 @@ namespace a429 {
   using bus_map_t = std::unordered_map<std::string, bus_t>;
 }
 
+
+//
+// Parse the CMD file and fill the A429 buses
+//
+// Note: the CMD file used to be parsed with libXML2 and XPath (the expression
+// "/ComponentMessagesDescription/A429_Bus" was evaluated by libXML2). It is now parsed with
+// expat: as expat is a streaming parser without any XPath support, the elements are
+// identified by their path in the document.
+//
+namespace {
+  //
+  // State of the parsing of the CMD file
+  //
+  struct cmd_context_t {
+    std::vector<std::string> path;  // Path of the element being parsed (e.g. {"ComponentMessagesDescription", "A429_Bus"})
+    a429::bus_map_t*         buses;  // A429 buses found in the CMD file
+    a429::bus_t*             bus;    // A429 bus being parsed (nullptr if not in a bus)
+    std::string              error;  // Error message (empty if no error)
+  };
+
+  //
+  // Return the value of an attribute of an element (empty string if the attribute does not exist)
+  //
+  std::string cmd_attribute(const XML_Char** attributes, const std::string& name)
+  {
+    for (int attribute_id = 0 ; attributes[attribute_id] != nullptr ; attribute_id += 2) {
+      if (name == attributes[attribute_id]) {
+        return attributes[attribute_id + 1] != nullptr ? attributes[attribute_id + 1] : "";
+      }
+    }
+    return std::string();
+  }
+
+  //
+  // Called by expat when an element is opened
+  //
+  void XMLCALL cmd_start_element(void* user_data, const XML_Char* name, const XML_Char** attributes)
+  {
+    cmd_context_t* context = static_cast<cmd_context_t*>(user_data);
+    context->path.push_back(name);
+
+    // /ComponentMessagesDescription/A429_Bus
+    if (context->path.size() == 2 &&
+        context->path[0] == "ComponentMessagesDescription" &&
+        context->path[1] == "A429_Bus")
+    {
+      const std::string bus_name = cmd_attribute(attributes, "Name");
+      if (bus_name.empty()) {
+        context->error = "Attribute 'Name' not found in A429_Bus element !";
+        return;
+      }
+      // The buses are indexed by their name: an already known bus is not overwritten
+      auto result = context->buses->emplace(bus_name, a429::bus_t());
+      context->bus = &result.first->second;
+    }
+    // /ComponentMessagesDescription/A429_Bus/SamplingMessage
+    else if (context->path.size() == 3 &&
+             context->path[0] == "ComponentMessagesDescription" &&
+             context->path[1] == "A429_Bus" &&
+             context->path[2] == "SamplingMessage")
+    {
+      if (context->bus == nullptr) return;
+      const std::string label_number = cmd_attribute(attributes, "Label");
+      const std::string label_sdi    = cmd_attribute(attributes, "SDI");
+      if (label_number.empty() || label_sdi.empty()) {
+        context->error = "Attribute 'Label' or 'SDI' not found in SamplingMessage element !";
+        return;
+      }
+      context->bus->push_label(label_number, label_sdi);
+    }
+  }
+
+  //
+  // Called by expat when an element is closed
+  //
+  void XMLCALL cmd_end_element(void* user_data, const XML_Char* /*name*/)
+  {
+    cmd_context_t* context = static_cast<cmd_context_t*>(user_data);
+    if (!context->path.empty()) {
+      context->path.pop_back();
+    }
+  }
+}
+
+//
+// Load the CMD file and fill the A429 buses
+//
+void load_cmd_file(const std::string& cmd_path, a429::bus_map_t& a429_buses)
+{
+  std::ifstream file(cmd_path.c_str(), std::ios::in | std::ios::binary);
+  if (!file.is_open()) {
+    DIE("Cannot read CMD file '" << cmd_path << "'");
+  }
+
+  XML_Parser parser = XML_ParserCreate(nullptr);
+  if (parser == nullptr) {
+    DIE("Cannot create the XML parser !");
+  }
+
+  cmd_context_t context;
+  context.buses = &a429_buses;
+  XML_SetUserData(parser, &context);
+  XML_SetElementHandler(parser, &cmd_start_element, &cmd_end_element);
+
+  // Feed the parser chunk by chunk to avoid loading the whole file in memory.
+  // As soon as an error is reported, the parsing is stopped: the parser must not be used anymore.
+  bool parse_failed = false;
+  std::string parse_error;
+  char buffer[64 * 1024];
+  while (file.good()) {
+    file.read(buffer, sizeof(buffer));
+    const std::streamsize count = file.gcount();
+    if (count == 0) {
+      break; // End of file
+    }
+    if (XML_Parse(parser, buffer, static_cast<int>(count), 0) == XML_STATUS_ERROR) {
+      parse_failed = true;
+      break;
+    }
+  }
+
+  // Tell expat that the document is complete (only if no error occurred yet)
+  if (!parse_failed && XML_Parse(parser, "", 0, 1) == XML_STATUS_ERROR) {
+    parse_failed = true;
+  }
+
+  // Report the error reported by expat (with its position in the document)
+  if (parse_failed) {
+    parse_error = XML_ErrorString(XML_GetErrorCode(parser));
+    parse_error += " at line " + std::to_string(XML_GetCurrentLineNumber(parser));
+    parse_error += ", column " + std::to_string(XML_GetCurrentColumnNumber(parser));
+  }
+  XML_ParserFree(parser);
+
+  if (parse_failed) {
+    DIE("Cannot parse CMD file '" << cmd_path << "': " << parse_error);
+  }
+  if (!context.error.empty()) {
+    DIE("Cannot read CMD file '" << cmd_path << "': " << context.error);
+  }
+}
 
 //
 // Classes that push data over network
@@ -146,20 +286,6 @@ struct a429_transceiver_t : public transceiver_t {
 };
 
 
-// Return an xml node attribute, as string
-// if optional = true and attribute not found, return std::string(). else DIE()
-std::string xml_node_attribute(const xmlNodePtr node, const std::string& name, bool optional = false)
-{
-  xmlChar* value = xmlGetProp(node, (const xmlChar*) name.c_str());
-  if (! value) {
-    if (optional) return std::string();
-    DIE("Attribute '" + name + "' not found !");
-  }
-  std::string result((const char*) value);
-  xmlFree(value);
-  return result;
-}
-
 // Parse an integer integer (note: broken with negative value)
 uint64_t parse_int_parameter(std::string arg, std::string value) {
   try {
@@ -243,41 +369,12 @@ int main(int argc, char** argv)
   //
   a429::bus_map_t a429_buses;
   if (cmd_path.empty() == false) {
-    xmlDocPtr cmd_doc = xmlParseFile(cmd_path.c_str());
-    if (!cmd_doc) DIE("Cannot read CMD file '" << cmd_path << "'");
-    xmlXPathContextPtr xpath_ctx = xmlXPathNewContext(cmd_doc);
-    ASSERT(xpath_ctx);
-    xmlXPathObjectPtr xpath_obj = xmlXPathEvalExpression((const xmlChar*)"/ComponentMessagesDescription/A429_Bus", xpath_ctx);
-    ASSERT(xpath_obj);
-    ASSERT(xpath_obj->nodesetval);
-    xmlNodeSetPtr nodes = xpath_obj->nodesetval;
+    load_cmd_file(cmd_path, a429_buses);
 
-    SAY("CMD: Found " << nodes->nodeNr << " A429 buses");
-    for (int node_id = 0; node_id < nodes->nodeNr; node_id++) {
-      if(nodes->nodeTab[node_id]->type == XML_ELEMENT_NODE) {
-        xmlNodePtr node = nodes->nodeTab[node_id];
-        ASSERT(std::string((const char*) node->name) == "A429_Bus");
-        std::string bus_name = xml_node_attribute(node, "Name");
-        auto emplace_result = a429_buses.emplace(std::pair<std::string, a429::bus_t>(bus_name, {}));
-        auto& a429_bus = emplace_result.first->second;
-        ASSERT(node->children);
-        for(auto child = node->children; child != nullptr; child = child->next) {
-          if(child->type == XML_ELEMENT_NODE) {
-            if (std::string((const char*) child->name) == "SamplingMessage") {
-              // We ignore direction so CMD needn't to be inverted
-              std::string label_name = xml_node_attribute(child, "Name");
-              std::string label_number = xml_node_attribute(child, "Label");
-              std::string label_sdi = xml_node_attribute(child, "SDI");
-              a429_bus.push_label(label_number, label_sdi);
-              //SAY(label_name << " " << label_number << " " << label_sdi);
-            }
-          }
-        }
-        SAY("CMD Bus name: " << bus_name << " label count: " << a429_bus.labels.size());
-      }
+    SAY("CMD: Found " << a429_buses.size() << " A429 buses");
+    for (const auto& a429_bus : a429_buses) {
+      SAY("CMD Bus name: " << a429_bus.first << " label count: " << a429_bus.second.labels.size());
     }
-    xmlXPathFreeContext(xpath_ctx);
-    xmlFreeDoc(cmd_doc);
   }
 
   //

@@ -26,6 +26,7 @@ add_library(ed247_objects OBJECT
     ed247_logs.cpp
     ed247_time.cpp
     ed247_conversion.cpp
+    ed247_xml_parser.cpp
     ed247_xml.cpp
     ed247_cominterface.cpp
     ed247_sample.cpp
@@ -40,7 +41,7 @@ add_library(ed247_objects OBJECT
 
 target_link_libraries(ed247_objects
   PUBLIC
-     LibXml2::LibXml2
+     EXPAT::EXPAT
      $<$<PLATFORM_ID:Windows>:wsock32>
      $<$<PLATFORM_ID:Windows>:ws2_32>
      $<$<PLATFORM_ID:QNX>:socket>
@@ -76,23 +77,10 @@ target_link_libraries(ed247_static PUBLIC ed247_objects)
 set_target_properties(ed247_static PROPERTIES PUBLIC_HEADER ed247.h)
 
 
-# Generate XSD header file containing the XSD as a string
-macro(_generate_xsd_header _XSD_PATH _XSD_FILENAME _HEADER_FILEPATH _VAR_NAME)
-  if(${_XSD_PATH}/${_XSD_FILENAME} IS_NEWER_THAN ${_HEADER_FILEPATH})
-    message("Generate ${_HEADER_FILEPATH}...")
-    file(READ ${_XSD_PATH}/${_XSD_FILENAME} XSD_CONTENT)
-    string(REPLACE "\\" "\\\\" XSD_CONTENT ${XSD_CONTENT})
-    string(REPLACE "\"" "\\\"" XSD_CONTENT ${XSD_CONTENT})
-    string(REPLACE "\n" "\\n\"\n\"" XSD_CONTENT ${XSD_CONTENT})
-    string(TIMESTAMP GENERATION_TIME)
-    file(WRITE ${_HEADER_FILEPATH} "// File generated from <${_XSD_FILENAME}> at ${GENERATION_TIME}
-static const char* ${_VAR_NAME} =
-\"${XSD_CONTENT}\\n\";
-")
-  endif()
-endmacro(_generate_xsd_header _XSD_PATH _XSD_FILENAME _HEADER_FILEPATH _VAR_NAME)
-
-_generate_xsd_header(${CMAKE_CURRENT_LIST_DIR}/xsd ED247A_ECIC.xsd ${CMAKE_CURRENT_BINARY_DIR}/ed247_xsd.h xsd_schema)
+# Note: the XSD schemas are not embedded in the library anymore.
+# They used to be compiled into the library (ed247_xsd.h) to validate the ECIC files with
+# libXML2. As expat does not support the XSD validation, the schemas are only installed
+# as a reference for the users of the library.
 
 # Install required stuff
 set(INSTALL_LIBDIR lib)
