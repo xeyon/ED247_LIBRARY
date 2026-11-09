@@ -69,8 +69,8 @@ ed247::log::~log()
 // Main Ctor
 void ed247::log::reset(ed247_log_level_t caller_level, const char* caller_filepath)
 {
-  const char* env_level;
-  const char* new_filepath;
+  char* env_level;
+  char* new_filepath;
 #ifdef _MSC_VER
   size_t len;
   _dupenv_s(&env_level, &len, ENV_VAR_LEVEL);
@@ -85,7 +85,7 @@ void ed247::log::reset(ed247_log_level_t caller_level, const char* caller_filepa
     SAY_STREAM(stream(), "Redirect log using env variable " << ENV_VAR_FILEPATH << " to file '" << new_filepath << "'");
   } else if (caller_filepath && *caller_filepath) {
     SAY_STREAM(stream(), "Redirect log to file '" << caller_filepath << "'");
-    new_filepath = caller_filepath;
+    new_filepath = const_cast<char*>(caller_filepath);
   }
   if (new_filepath && *new_filepath) {
     if (_fstream.is_open()) {

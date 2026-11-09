@@ -355,7 +355,7 @@ ed247_status_t ed247::Stream::register_callback(ed247_context_t context, ed247_s
   if(it != _callbacks.end()){
     return ED247_STATUS_FAILURE;
   }
-  _callbacks.push_back((CallbackData) { context, callback });
+  _callbacks.push_back(CallbackData{ context, callback });
   return ED247_STATUS_SUCCESS;
 }
 
